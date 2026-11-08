@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SafetyLift</title>
+  <meta name="description" content="SafetyLift Copilot — sécurité Équipe 75, TK Elevator">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1c1e21">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="icon" href="/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <button class="brand" data-go="accueil" aria-label="Accueil">
+        <img class="brand-mark" src="/icons/icon-192.png" alt="">
+        <span class="brand-name">SafetyLift</span>
+      </button>
+      <div class="top-actions">
+        <span id="net" class="net" hidden>Hors ligne</span>
+        <button id="btn-pilotage" class="chip-btn" data-go="pilotage" hidden>Pilotage</button>
+        <button id="btn-install" class="icon-btn" hidden aria-label="Installer l'application">⤓</button>
+        <button id="btn-menu" class="icon-btn" aria-label="Mon compte">☰</button>
+      </div>
+    </header>
+
+    <main id="view" tabindex="-1"></main>
+
+    <nav class="tabbar" aria-label="Navigation principale">
+      <button data-go="accueil"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Accueil</span></button>
+      <button data-go="fiches"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h7"/></svg><span>Fiches</span></button>
+      <button data-go="copilote"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4zM8 10h.01M12 10h.01M16 10h.01"/></svg><span>Copilote</span></button>
+      <button data-go="signaler" class="tab-alert"><svg viewBox="0 0 24 24"><path d="M12 3l10 18H2zM12 10v5M12 18h.01"/></svg><span>Signaler</span></button>
+      <button data-go="equipe"><svg viewBox="0 0 24 24"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 12 0v1M16 3.5a4 4 0 0 1 0 7.5M22 21v-1a6 6 0 0 0-4-5.6"/></svg><span>Équipe</span></button>
+    </nav>
+  </div>
+
+  <dialog id="sheet" class="sheet"></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

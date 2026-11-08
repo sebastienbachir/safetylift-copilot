@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: safetylift-copilot
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      - { key: TEAM_CODE, sync: false }
+      - { key: MANAGER_CODE, sync: false }
+      - { key: DATABASE_URL, sync: false }
+      - { key: ANTHROPIC_API_KEY, sync: false }
+      - { key: TEAMS_WEBHOOK_URL, sync: false }
+      - { key: BREVO_API_KEY, sync: false }
+      - { key: GOOGLE_SERVICE_ACCOUNT_JSON, sync: false }
+      - { key: APP_URL, sync: false }
