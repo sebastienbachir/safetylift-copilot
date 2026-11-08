@@ -785,16 +785,23 @@ async function pushState() {
   if (isIOS() && !isStandalone()) return 'ios-install';
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return 'unsupported';
   if (Notification.permission === 'denied') return 'denied';
-  try { const reg = await navigator.serviceWorker.ready; return (await reg.pushManager.getSubscription()) ? 'on' : 'off'; } catch { return 'unsupported'; }
+  try {
+    const reg = await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 5000))]);
+    if (!reg) return 'off';
+    return (await reg.pushManager.getSubscription()) ? 'on' : 'off';
+  } catch { return 'unsupported'; }
 }
 const b64ToBytes = b64 => { const s = atob((b64 + '='.repeat((4 - b64.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(s, c => c.charCodeAt(0)); };
 async function enablePush() {
   const perm = await Notification.requestPermission();
   if (perm !== 'granted') throw new Error('Notifications refusées. Autorise-les dans les réglages du téléphone.');
-  const reg = await navigator.serviceWorker.ready;
+  const reg = await Promise.race([navigator.serviceWorker.ready, new Promise((_, ko) => setTimeout(() => ko(new Error('Service de l\'appli pas prêt : ferme et rouvre l\'appli.')), 8000))]);
   const { key } = await api('/api/push/key');
   let sub = await reg.pushManager.getSubscription();
-  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) });
+  if (!sub) {
+    try { sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) }); }
+    catch (e) { throw new Error('Abonnement refusé par le téléphone : ' + (e.message || e.name)); }
+  }
   await api('/api/push/subscribe', { body: { subscription: sub.toJSON() } });
   toast('Notifications activées.');
 }
@@ -811,15 +818,20 @@ async function paintNotifCard() {
     navigator.serviceWorker.ready.then(r => r.pushManager.getSubscription()).then(sub => sub && api('/api/push/subscribe', { body: { subscription: sub.toJSON() } })).catch(() => {});
     return;
   }
-  if (dismissed || st === 'unsupported' || st === 'denied' || !$('#notif-card')) return;
+  if ((dismissed && st === 'off') || !$('#notif-card')) return;
+  const msg = {
+    off: `<p class="small">Chaque lundi à 08:35, une notification t'amène directement à la minute sécurité.</p>`,
+    'ios-install': `<p class="small">Sur iPhone, ajoute d'abord SafetyLift à l'écran d'accueil : bouton <b>Partager</b> ⬆️ de Safari, puis <b>Sur l'écran d'accueil</b>. Ouvre ensuite l'appli depuis son icône et active les notifications.</p>`,
+    denied: `<p class="small">Les notifications sont bloquées pour SafetyLift. Autorise-les dans les réglages du téléphone (Notifications → SafetyLift, ou réglages du site dans Chrome), puis rouvre l'appli.</p>`,
+    unsupported: `<p class="small">Ce navigateur ne gère pas les notifications. Ouvre SafetyLift dans <b>Chrome</b> (Android) ou <b>Safari</b> (iPhone), pas depuis Outlook ou Teams, puis ajoute-la à l'écran d'accueil.</p>`,
+  }[st];
+  if (dismissed && st !== 'off') { try { if (localStorage.getItem('sl_notif_later2') === '1') return; } catch {} }
   box.innerHTML = `<div class="card stack" style="margin-top:16px;border-color:var(--amber)">
     <h3>Reçois la minute du lundi en notification</h3>
-    ${st === 'ios-install'
-      ? `<p class="small">Sur iPhone, ajoute d'abord SafetyLift à l'écran d'accueil : bouton <b>Partager</b> ⬆️ de Safari, puis <b>Sur l'écran d'accueil</b>. Ouvre ensuite l'appli depuis son icône et active les notifications.</p>`
-      : `<p class="small">Chaque lundi à ${'08:35'}, une notification t'amène directement à la minute sécurité.</p>`}
+    ${msg}
     <div class="row wrap">${st === 'off' ? '<button class="btn amber sm" id="nt-on">Activer les notifications</button>' : ''}<button class="link-btn" id="nt-later">Plus tard</button></div></div>`;
-  $('#nt-on')?.addEventListener('click', async () => { try { await enablePush(); box.innerHTML = ''; } catch (e) { toast(e.message, 4000); } });
-  $('#nt-later').onclick = () => { try { localStorage.setItem('sl_notif_later', '1'); } catch {} box.innerHTML = ''; };
+  $('#nt-on')?.addEventListener('click', async () => { const b = $('#nt-on'); b.disabled = true; b.textContent = 'Activation…'; try { await enablePush(); box.innerHTML = ''; } catch (e) { toast(e.message || String(e), 6000); b.disabled = false; b.textContent = 'Activer les notifications'; } });
+  $('#nt-later').onclick = () => { try { localStorage.setItem('sl_notif_later', '1'); localStorage.setItem('sl_notif_later2', '1'); } catch {} box.innerHTML = ''; };
 }
 function waLink(m) {
   const url = location.origin + '/#minute';
@@ -828,7 +840,11 @@ function waLink(m) {
 
 /* ---------------- PWA ---------------- */
 function registerSW() {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    const hadController = !!navigator.serviceWorker.controller; let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
+    navigator.serviceWorker.register('/sw.js').then(r => r.update()).catch(() => {});
+  }
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); S.installEvt = e; $('#btn-install').hidden = false; });
   $('#btn-install').onclick = async () => { if (!S.installEvt) return; S.installEvt.prompt(); await S.installEvt.userChoice; S.installEvt = null; $('#btn-install').hidden = true; };
 }
