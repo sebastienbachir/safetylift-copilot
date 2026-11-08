@@ -43,7 +43,6 @@ const cfg = {
   teamsWebhookUrl: env.TEAMS_WEBHOOK_URL || '',
   brevoKey: env.BREVO_API_KEY || '',
   mailFrom: env.MAIL_FROM || 'tk.elevator.france@gmail.com',
-  smsSender: (env.SMS_SENDER || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 11), // vide = SMS désactivés
   mailFromName: env.MAIL_FROM_NAME || 'SafetyLift TKE',
   incidentEmails: (env.INCIDENT_EMAILS || 'eric.barnier@tkelevator.com,sebastien.bachir@tkelevator.com').split(',').map(s => s.trim()).filter(Boolean),
   sendDay: 1, // lundi
