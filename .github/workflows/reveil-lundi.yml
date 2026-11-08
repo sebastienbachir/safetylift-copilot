@@ -1,0 +1,25 @@
+# Réveille SafetyLift le lundi matin pour que la minute sécurité parte à l'heure
+# (Render gratuit s'endort après 15 min sans visite). Gratuit, sans n8n.
+# Le serveur n'envoie qu'une fois par semaine : les appels en double sont sans effet.
+name: Réveil minute sécurité du lundi
+on:
+  schedule:
+    - cron: '38 6 * * 1'   # 08:38 Paris en heure d'été
+    - cron: '38 7 * * 1'   # 08:38 Paris en heure d'hiver
+    - cron: '8 8 * * 1'    # filet de sécurité
+  workflow_dispatch: {}
+jobs:
+  reveil:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Appeler SafetyLift
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -s -o out.json -w '%{http_code}' -m 120 "https://safetylift-copilot.onrender.com/api/cron/weekly?key=${CRON_SECRET}") || true
+            echo "HTTP $code"; cat out.json 2>/dev/null; echo
+            [ "$code" = "200" ] && exit 0
+            sleep 30
+          done
+          exit 1
