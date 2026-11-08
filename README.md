@@ -5,6 +5,8 @@ front HTML/CSS/JS sans build, serveur Express, base Neon, mails Brevo, déploiem
 
 ## Ce que fait l'appli
 
+Connexion : adresse e-mail de l'annuaire (onglet Techniciens) + code d'accès.
+
 **Technicien** (code équipe)
 - Accueil : minute sécurité de la semaine + bouton « J'ai lu », appel direct de son binôme / LTA / 112, accès rapides.
 - Fiches réflexes (toit, consignation, cuvette, UBC, shunts, EPI, SIF, 10 règles, 5 pièges…) : **disponibles hors ligne**.
@@ -69,7 +71,7 @@ Sans `DATABASE_URL`, les données vont dans `data/store.json`.
 ```
 server/index.js      routes API + démarrage
 server/auth.js       sessions et rôles
-server/ai.js         Claude / Gemini, prompts, extraction de règles, analyse des signalements
+server/ai.js         Grok / Claude / Gemini, prompts, extraction de règles, analyse des signalements
 server/knowledge.js  recherche BM25 (fiches, règles, extraits Drive)
 server/google.js     synchro Sheets + indexation Drive
 server/dispatch.js   Teams, Brevo, planification du lundi

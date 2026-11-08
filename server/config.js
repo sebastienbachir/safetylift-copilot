@@ -19,6 +19,7 @@ const cfg = {
   cronSecret: env.CRON_SECRET || '',
 
   // IA
+  xaiKey: env.XAI_API_KEY || env.GROK_API_KEY || '',
   anthropicKey: env.ANTHROPIC_API_KEY || '',
   geminiKey: env.GEMINI_API_KEY || '',
   aiModel: env.AI_MODEL || '',
@@ -54,6 +55,12 @@ const cfg = {
   teamsChannelUrl: env.TEAMS_CHANNEL_URL || 'https://teams.microsoft.com/l/channel/19%3A204bb34375e34070b8c60b568e78cc2a%40thread.tacv2/SafetyLift%20copilot?groupId=dd7fb13d-8e29-4d35-a93a-db1de7f2162b&tenantId=84d9a216-e285-4aac-b163-0dfd0c074546',
 };
 cfg.driveFolderUrl = `https://drive.google.com/drive/folders/${cfg.driveFolderId}`;
-cfg.aiProvider = cfg.anthropicKey ? 'claude' : (cfg.geminiKey ? 'gemini' : null);
+// Fournisseur IA : AI_PROVIDER force le choix, sinon Grok > Claude > Gemini selon les clés présentes
+cfg.aiProvider = (() => {
+  const forced = (env.AI_PROVIDER || '').toLowerCase();
+  const has = { grok: !!cfg.xaiKey, claude: !!cfg.anthropicKey, gemini: !!cfg.geminiKey };
+  if (forced && has[forced]) return forced;
+  return ['grok', 'claude', 'gemini'].find(p => has[p]) || null;
+})();
 
 module.exports = cfg;

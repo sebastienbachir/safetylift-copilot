@@ -26,10 +26,6 @@ const pub = t => ({ id: t.id, nom: t.nom, fonction: t.fonction, binome: t.binome
 
 /* ---------- Public ---------- */
 app.get('/api/health', (req, res) => res.json({ ok: true, ai: cfg.aiProvider, db: !!process.env.DATABASE_URL, time: new Date().toISOString() }));
-app.get('/api/team', wrap(async (req, res) => {
-  const t = (await store.list('techs')).filter(x => x.actif !== false).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
-  res.json(t.map(x => ({ id: x.id, nom: x.nom, manager: auth.canBeManager(x) })));
-}));
 app.post('/api/login', wrap(auth.login));
 app.post('/api/logout', auth.logout);
 

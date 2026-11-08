@@ -143,30 +143,28 @@ function render() {
 async function showLogin() {
   $('#app').hidden = true; document.body.classList.add('logged-out');
   if ($('#login')) return;
-  let team = [];
-  try { team = await api('/api/team', { noAuthRedirect: true }); } catch {}
   const div = document.createElement('div');
   div.id = 'login'; div.className = 'login';
   div.innerHTML = `<form class="login-box" autocomplete="on">
     <h1>SafetyLift<small>Équipe 75 · TK Elevator</small></h1>
     <div class="stripe"></div>
-    <div class="field"><label class="f" for="lg-user">Qui es-tu ?</label>
-      <select id="lg-user" class="input" required><option value="">Choisis ton nom</option>${team.map(t => `<option value="${esc(t.id)}" data-m="${t.manager ? 1 : 0}">${esc(t.nom)}</option>`).join('')}</select></div>
+    <div class="field"><label class="f" for="lg-mail">Adresse e-mail</label>
+      <input id="lg-mail" class="input" type="email" inputmode="email" autocomplete="username" autocapitalize="off" spellcheck="false" required placeholder="prenom.nom@tkelevator.com"></div>
     <div class="field"><label class="f" for="lg-code">Code d'accès</label>
       <input id="lg-code" class="input" type="password" inputmode="text" autocomplete="current-password" required placeholder="Code équipe ou code manager"></div>
     <p class="err" id="lg-err"></p>
     <button class="btn amber block" type="submit">Entrer</button>
-    <p class="small" style="color:#9aa3ad;margin-top:16px">Le code équipe ouvre l'espace technicien. Les LTA et RSC utilisent le code manager pour accéder au pilotage.</p>
+    <p class="small" style="color:#9aa3ad;margin-top:16px">Utilise ton adresse TKE. Le code équipe ouvre l'espace technicien ; les LTA et RSC utilisent le code manager pour le pilotage.</p>
   </form>`;
   document.body.appendChild(div);
-  const last = localStorage.getItem('sl_last_user'); if (last) $('#lg-user').value = last;
+  const last = localStorage.getItem('sl_last_mail'); if (last) { $('#lg-mail').value = last; setTimeout(() => $('#lg-code').focus(), 50); }
   div.querySelector('form').onsubmit = async e => {
     e.preventDefault();
-    const userId = $('#lg-user').value, code = $('#lg-code').value;
+    const email = $('#lg-mail').value.trim(), code = $('#lg-code').value;
     $('#lg-err').textContent = '';
     try {
-      await api('/api/login', { body: { userId, code }, noAuthRedirect: true });
-      localStorage.setItem('sl_last_user', userId);
+      await api('/api/login', { body: { email, code }, noAuthRedirect: true });
+      localStorage.setItem('sl_last_mail', email);
       S.data = await api('/api/bootstrap'); localStorage.setItem('sl_boot', JSON.stringify(S.data));
       afterData(); go('accueil'); render();
     } catch (err) { $('#lg-err').textContent = err.message; }
@@ -594,7 +592,7 @@ async function vPilotage() {
       <h2>Sources de données</h2>
       <div class="status-line"><span class="dot ${o.sheets?.errors?.length ? 'wait' : o.sheets ? 'ok' : 'ko'}"></span><span style="flex:1">Classeur SafetyLift_Database ${o.sheets ? `· ${fmtDate(o.sheets.at)}<br><span class="small muted">${esc(o.sheets.ok.join(', ') || 'rien lu')}${o.sheets.errors.length ? ' — ' + esc(o.sheets.errors.join(' ; ')) : ''}</span>` : ''}</span><button class="btn ghost sm" id="sync">Synchroniser</button></div>
       <div class="status-line"><span class="dot ${!ch.google ? 'ko' : o.drive?.errors?.length ? 'wait' : o.drive ? 'ok' : 'wait'}"></span><span style="flex:1">Doc technique Drive ${ch.google ? (o.drive ? `· ${o.drive.files} fichiers, ${o.index.docChunks} extraits indexés<br><span class="small muted">${o.drive.finishedAt ? fmtDate(o.drive.finishedAt) : 'en cours…'}${o.drive.skipped?.length ? ` · ${o.drive.skipped.length} ignorés (images/scans)` : ''}${o.drive.errors?.length ? ` · ${o.drive.errors.length} erreurs` : ''}</span>` : '· pas encore indexée') : '<br><span class="small muted">Ajouter GOOGLE_SERVICE_ACCOUNT_JSON et partager le dossier avec le compte de service.</span>'}</span><button class="btn ghost sm" id="reidx" ${ch.google ? '' : 'disabled'}>Indexer</button></div>
-      <div class="status-line"><span class="dot ${ch.ai ? 'ok' : 'ko'}"></span>IA : ${ch.ai ? (ch.ai === 'claude' ? 'Claude' : 'Gemini') : 'aucune (mode fiches)'}</div>
+      <div class="status-line"><span class="dot ${ch.ai ? 'ok' : 'ko'}"></span>IA : ${ch.ai ? ({ grok: 'Grok (xAI)', claude: 'Claude', gemini: 'Gemini' }[ch.ai]) : 'aucune (mode fiches) — ajouter XAI_API_KEY'}</div>
       <div class="status-line"><span class="dot ${ch.db ? 'ok' : 'wait'}"></span>Base : ${ch.db ? 'Postgres' : 'fichier local (non persistant sur Render)'}</div>
     </div>`;
   bindGo2($('#pl'));

@@ -36,9 +36,13 @@ const safeEq = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(Str
 async function login(req, res) {
   const ip = req.ip;
   if (tooMany(ip)) return res.status(429).json({ error: 'Trop d\'essais. Réessayez dans 15 minutes.' });
-  const { userId, code } = req.body || {};
-  const tech = await store.get('techs', userId);
-  if (!tech || tech.actif === false) return res.status(400).json({ error: 'Choisissez votre nom dans la liste.' });
+  const { email, code } = req.body || {};
+  const mail = String(email || '').trim().toLowerCase();
+  const tech = mail && (await store.list('techs')).find(t => (t.email || '').toLowerCase() === mail);
+  if (!tech || tech.actif === false) {
+    attempts.get(ip).push(Date.now());
+    return res.status(401).json({ error: 'Adresse e-mail ou code incorrect.' });
+  }
   let role = null;
   if (code && safeEq(code.trim(), cfg.managerCode) && canBeManager(tech)) role = 'manager';
   else if (code && safeEq(code.trim(), cfg.teamCode)) role = 'tech';

@@ -4,6 +4,20 @@ const store = require('./store');
 const kb = require('./knowledge');
 
 async function complete({ system, messages, maxTokens = 1200, json = false }) {
+  if (cfg.aiProvider === 'grok') {
+    const r = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${cfg.xaiKey}` },
+      body: JSON.stringify({
+        model: cfg.aiModel || 'grok-4-latest', max_tokens: maxTokens, temperature: 0.2,
+        messages: [{ role: 'system', content: system }, ...messages],
+        ...(json ? { response_format: { type: 'json_object' } } : {}),
+      }),
+    });
+    if (!r.ok) throw new Error(`Grok ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    const j = await r.json();
+    return j.choices?.[0]?.message?.content || '';
+  }
   if (cfg.aiProvider === 'claude') {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -43,7 +57,7 @@ async function teamBlock() {
 }
 
 function systemPrompt({ user, team, sources }) {
-  return `Tu es SafetyLift Copilot, l'équipier sécurité et technique des techniciens d'ascenseurs de l'Équipe 75 (SAV TK Elevator, Paris). Tu réponds en français, tu tutoies avec respect professionnel.
+  return `Tu es SafetyLift Copilot (et non Grok, même si on te le demande), l'équipier sécurité et technique des techniciens d'ascenseurs de l'Équipe 75 (SAV TK Elevator, Paris). Tu réponds en français, tu tutoies avec respect professionnel.
 
 Tu parles à : ${user.nom} (${user.fonction || 'technicien'}${user.binome ? ', binôme ' + user.binome : ''}). Il est probablement sur le terrain, sur téléphone : va droit au but, phrases courtes, étapes numérotées quand c'est une procédure.
 
