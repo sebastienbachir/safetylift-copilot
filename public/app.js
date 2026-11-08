@@ -259,6 +259,8 @@ function vAccueil() {
       </div>
     </section>
 
+    <div id="notif-card"></div>
+
     <div class="section-title"><h2>Accès rapides</h2></div>
     <div class="quick-grid">
       <button class="tile accent" data-go2="signaler">${icon('alert')}<b>Signaler</b><span>Situation dangereuse</span></button>
@@ -279,6 +281,7 @@ function vAccueil() {
     </div>`;
   bindGo2();
   $('#btn-read')?.addEventListener('click', markRead);
+  paintNotifCard();
 }
 
 async function markRead() {
@@ -302,7 +305,7 @@ function vMinute(n) {
       <h2>${esc(m.theme)}</h2>
       <p class="fiche-body" style="font-size:17px">${esc(m.message)}</p>
       <p><span class="tag red">Risque</span> ${esc(m.risque)}</p>
-      <div class="row wrap"><button class="btn ghost sm" id="cp">Copier pour SMS / mail</button>
+      <div class="row wrap"><a class="btn ghost sm" href="${waLink(m)}" target="_blank" rel="noopener">Partager sur WhatsApp</a><button class="btn ghost sm" id="cp">Copier le texte</button>
         <button class="btn ghost sm" id="ask">Approfondir avec le copilote</button></div>
     </div>
     <div class="section-title"><h2>Toutes les semaines</h2></div>
@@ -606,19 +609,21 @@ async function vPilotage() {
       <div>
         <div class="status-line"><span class="dot ${ch.teams ? 'ok' : 'ko'}"></span>Teams ${ch.teams ? 'configuré' : '— ajouter TEAMS_WEBHOOK_URL'}</div>
         <div class="status-line"><span class="dot ${ch.mail ? 'ok' : 'ko'}"></span>E-mail Brevo ${ch.mail ? 'configuré' : '— ajouter BREVO_API_KEY'}</div>
+        <div class="status-line"><span class="dot ${ch.push ? 'ok' : 'wait'}"></span>Notifications : ${ch.push ? `${ch.push} appareil${ch.push > 1 ? 's' : ''} abonné${ch.push > 1 ? 's' : ''} (${o.team.filter(t => t.notif).length}/${o.team.length} personnes)` : 'personne n\'est encore abonné'}</div>
         <div class="status-line"><span class="dot ${ch.cron ? 'ok' : 'wait'}"></span>Réveil externe ${ch.cron ? 'possible (CRON_SECRET)' : 'non configuré : conseillé sur Render gratuit'}</div>
       </div>
-      ${last ? `<p class="small">Dernier envoi : ${fmtDate(last.at)} · S${last.minute}${last.test ? ' (test)' : ''} · Teams ${last.teams.skipped ? '—' : last.teams.ok ? '✓' : '✗'} · e-mail ${last.mail.ok ? '✓ ' + last.mail.count : '✗'}${(!last.teams.ok && last.teams.error && !last.teams.skipped) ? `<br><span class="muted">${esc(last.teams.error)}</span>` : ''}${(!last.mail.ok && last.mail.error) ? `<br><span class="muted">${esc(last.mail.error)}</span>` : ''}</p>` : ''}
+      ${last ? `<p class="small">Dernier envoi : ${fmtDate(last.at)} · S${last.minute}${last.test ? ' (test)' : ''} · Teams ${last.teams.skipped ? '—' : last.teams.ok ? '✓' : '✗'} · e-mail ${last.mail.ok ? '✓ ' + last.mail.count : '✗'}${last.push ? ` · notif ${last.push.ok ? '✓ ' + last.push.count : '✗'}` : ''}${(!last.teams.ok && last.teams.error && !last.teams.skipped) ? `<br><span class="muted">${esc(last.teams.error)}</span>` : ''}${(!last.mail.ok && last.mail.error) ? `<br><span class="muted">${esc(last.mail.error)}</span>` : ''}</p>` : ''}
       <div class="row wrap">
         <button class="btn amber sm" id="d-now">Diffuser maintenant</button>
         <button class="btn ghost sm" id="d-test">M'envoyer un test</button>
         <button class="btn ghost sm" id="d-teams">Tester la carte Teams</button>
+        <a class="btn ghost sm" href="${waLink(m)}" target="_blank" rel="noopener">Partager sur WhatsApp</a>
       </div>
     </div>
 
     <div class="card">
       <div class="row spread"><h2>Lecture S${o.week.week}</h2><button class="link-btn" id="cp-miss">Copier les absents</button></div>
-      <table class="table">${o.team.map(t => `<tr><td>${esc(t.nom)}</td><td>${t.readAt ? `<span class="tag green">Lue ${fmtDate(t.readAt, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}</span>` : '<span class="tag grey">Pas encore</span>'}</td><td class="small muted">${t.quiz ? `Quiz ${t.quiz.score}/${t.quiz.total}` : ''}</td><td style="text-align:right">${t.hasCode ? `<button class="link-btn small" data-reset="${esc(t.id)}" data-nom="${esc(t.nom)}">Code oublié</button>` : '<span class="tag grey" title="Ne s\'est jamais connecté">Pas activé</span>'}</td></tr>`).join('')}</table>
+      <table class="table">${o.team.map(t => `<tr><td>${esc(t.nom)}</td><td>${t.readAt ? `<span class="tag green">Lue ${fmtDate(t.readAt, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}</span>` : '<span class="tag grey">Pas encore</span>'}</td><td class="small muted">${t.notif ? '<span title="Notifications activées">🔔</span> ' : ''}${t.quiz ? `Quiz ${t.quiz.score}/${t.quiz.total}` : ''}</td><td style="text-align:right">${t.hasCode ? `<button class="link-btn small" data-reset="${esc(t.id)}" data-nom="${esc(t.nom)}">Code oublié</button>` : '<span class="tag grey" title="Ne s\'est jamais connecté">Pas activé</span>'}</td></tr>`).join('')}</table>
     </div>
 
     <div class="section-title"><h2>Signalements</h2></div><div id="inc" class="stack"><div class="empty">…</div></div>
@@ -646,7 +651,7 @@ async function vPilotage() {
     </div>`;
   bindGo2($('#pl'));
   $('#auto').onchange = async e => { await api('/api/admin/schedule', { body: { enabled: e.target.checked } }); toast(e.target.checked ? 'Envoi automatique activé.' : 'Envoi automatique désactivé.'); render(); };
-  const disp = async (body, msg) => { try { const r = await api('/api/admin/dispatch', { body }); toast(`${msg} — Teams ${r.teams.skipped ? '—' : r.teams.ok ? '✓' : '✗'}, e-mail ${r.mail.ok ? '✓' : '✗'}`, 4500); render(); } catch (e) { toast(e.message); } };
+  const disp = async (body, msg) => { try { const r = await api('/api/admin/dispatch', { body }); toast(`${msg} — Teams ${r.teams.skipped ? '—' : r.teams.ok ? '✓' : '✗'}, e-mail ${r.mail.ok ? '✓' : '✗'}, notif ${r.push?.ok ? '✓ ' + r.push.count : '✗'}`, 4500); render(); } catch (e) { toast(e.message); } };
   $('#d-now').onclick = () => confirmSheet('Diffuser maintenant ?', `La minute S${m.id} « ${m.theme} » part à toute l'équipe, sur Teams et par e-mail.`, 'Diffuser').then(ok => ok && disp({}, 'Diffusée'));
   $('#d-test').onclick = () => disp({ test: true }, 'Test envoyé à ' + S.data.me.email);
   $('#d-teams').onclick = () => confirmSheet('Tester la carte Teams', 'Une carte marquée [TEST] sera publiée dans le canal de l\'équipe.', 'Publier le test').then(ok => ok && disp({ test: true, teamsToo: true }, 'Test'));
@@ -731,6 +736,7 @@ function openMenu() {
     <p class="muted">${esc(me.fonction || '')} · ${me.role === 'manager' ? 'accès manager' : 'accès technicien'}</p>
     <div class="stack" style="margin-top:12px">
       <div class="status-line"><span style="flex:1">Thème</span><div class="chips" id="th">${[['auto', 'Auto'], ['light', 'Clair'], ['dark', 'Sombre']].map(([v, l]) => `<button data-v="${v}" class="${(localStorage.getItem('sl_theme') || 'auto') === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+      <div class="status-line"><span style="flex:1">Notifications (minute du lundi)<br><span class="small muted" id="nt-hint"></span></span><label class="switch"><input type="checkbox" id="nt"><span></span></label></div>
       <div class="status-line"><span style="flex:1">Lire les réponses du copilote à voix haute</span><label class="switch"><input type="checkbox" id="vo" ${S.voiceOut ? 'checked' : ''}><span></span></label></div>
       <button class="btn ghost block" data-go2="minute">Programme des minutes</button>
       <button class="btn ghost block" data-go2="signalements">Mes signalements</button>
@@ -740,6 +746,11 @@ function openMenu() {
     </div>`, d => {
     bindGo2(d); $$('[data-go2]', d).forEach(b => b.addEventListener('click', () => d.close()));
     $$('#th button', d).forEach(b => b.onclick = () => { localStorage.setItem('sl_theme', b.dataset.v); applyTheme(); $$('#th button', d).forEach(x => x.classList.toggle('on', x === b)); });
+    pushState().then(st => {
+      const box = $('#nt', d); box.checked = st === 'on'; box.disabled = !['on', 'off'].includes(st);
+      $('#nt-hint', d).textContent = { denied: 'Bloquées dans les réglages du téléphone', unsupported: 'Non disponibles sur ce navigateur', 'ios-install': 'Ajoute d\'abord l\'appli à l\'écran d\'accueil' }[st] || '';
+      box.onchange = async () => { box.disabled = true; try { box.checked ? await enablePush() : await disablePush(); } catch (e) { toast(e.message); box.checked = !box.checked; } box.disabled = false; };
+    });
     $('#vo', d).onchange = e => { S.voiceOut = e.target.checked; localStorage.setItem('sl_voice', S.voiceOut ? '1' : '0'); };
     $('#m-rules', d).onclick = () => { d.close(); showRules(); };
     $('#m-code', d).onclick = () => { d.close(); changeCode(); };
@@ -765,6 +776,54 @@ async function flushOutbox() {
   }
   localStorage.setItem('sl_outbox', JSON.stringify(rest)); flushing = false;
   if (rest.length < q.length) toast(`${q.length - rest.length} envoi(s) en attente transmis.`);
+}
+
+/* ---------------- Notifications push & WhatsApp ---------------- */
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+async function pushState() {
+  if (isIOS() && !isStandalone()) return 'ios-install';
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return 'unsupported';
+  if (Notification.permission === 'denied') return 'denied';
+  try { const reg = await navigator.serviceWorker.ready; return (await reg.pushManager.getSubscription()) ? 'on' : 'off'; } catch { return 'unsupported'; }
+}
+const b64ToBytes = b64 => { const s = atob((b64 + '='.repeat((4 - b64.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(s, c => c.charCodeAt(0)); };
+async function enablePush() {
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') throw new Error('Notifications refusées. Autorise-les dans les réglages du téléphone.');
+  const reg = await navigator.serviceWorker.ready;
+  const { key } = await api('/api/push/key');
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) });
+  await api('/api/push/subscribe', { body: { subscription: sub.toJSON() } });
+  toast('Notifications activées.');
+}
+async function disablePush() {
+  const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription();
+  if (sub) { await api('/api/push/unsubscribe', { body: { endpoint: sub.endpoint } }).catch(() => {}); await sub.unsubscribe(); }
+  toast('Notifications désactivées.');
+}
+async function paintNotifCard() {
+  const box = $('#notif-card'); if (!box) return;
+  let dismissed = false; try { dismissed = localStorage.getItem('sl_notif_later') === '1'; } catch {}
+  const st = await pushState();
+  if (st === 'on') {  // garde l'abonnement à jour côté serveur
+    navigator.serviceWorker.ready.then(r => r.pushManager.getSubscription()).then(sub => sub && api('/api/push/subscribe', { body: { subscription: sub.toJSON() } })).catch(() => {});
+    return;
+  }
+  if (dismissed || st === 'unsupported' || st === 'denied' || !$('#notif-card')) return;
+  box.innerHTML = `<div class="card stack" style="margin-top:16px;border-color:var(--amber)">
+    <h3>Reçois la minute du lundi en notification</h3>
+    ${st === 'ios-install'
+      ? `<p class="small">Sur iPhone, ajoute d'abord SafetyLift à l'écran d'accueil : bouton <b>Partager</b> ⬆️ de Safari, puis <b>Sur l'écran d'accueil</b>. Ouvre ensuite l'appli depuis son icône et active les notifications.</p>`
+      : `<p class="small">Chaque lundi à ${'08:35'}, une notification t'amène directement à la minute sécurité.</p>`}
+    <div class="row wrap">${st === 'off' ? '<button class="btn amber sm" id="nt-on">Activer les notifications</button>' : ''}<button class="link-btn" id="nt-later">Plus tard</button></div></div>`;
+  $('#nt-on')?.addEventListener('click', async () => { try { await enablePush(); box.innerHTML = ''; } catch (e) { toast(e.message, 4000); } });
+  $('#nt-later').onclick = () => { try { localStorage.setItem('sl_notif_later', '1'); } catch {} box.innerHTML = ''; };
+}
+function waLink(m) {
+  const url = location.origin + '/#minute';
+  return 'https://wa.me/?text=' + encodeURIComponent(`🦺 *Minute sécurité S${m.id}/52*\n\n*${m.theme}*\n${m.message}\n\n⚠️ Risque : ${m.risque}\n\n👉 Lire et valider : ${url}`);
 }
 
 /* ---------------- PWA ---------------- */

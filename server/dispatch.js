@@ -1,6 +1,7 @@
 // Diffusion de la minute sécurité : Teams (webhook Power Automate) + e-mail (Brevo), planifiée le lundi 08:35.
 const cfg = require('./config');
 const store = require('./store');
+const push = require('./push');
 const { parisParts, isoWeek, minuteNumberForWeek, uid } = require('./util');
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -84,9 +85,11 @@ async function dispatchMinute({ week, by = 'Automatique', test = false, teamsToo
   const recipients = test ? [user?.email].filter(Boolean) : techs.map(t => t.email);
   const teams = (!test || teamsToo) ? await sendTeams(m, { test }) : { ok: false, configured: !!cfg.teamsWebhookUrl, skipped: true };
   const mail = await sendMail({ to: recipients, ...minuteMail(m, test) });
-  const entry = { id: uid('d-'), at: new Date().toISOString(), minute: m.id, theme: m.theme, by, test, teams, mail, recipients: recipients.length };
+  const notif = await push.send({ title: `${test ? '[TEST] ' : ''}🦺 Minute sécu S${m.id}`, body: `${m.theme} — ${m.risque}`, url: '/#minute', tag: `minute-${m.id}` }, test ? [user?.id] : null)
+    .catch(e => ({ ok: false, configured: true, error: e.message }));
+  const entry = { id: uid('d-'), at: new Date().toISOString(), minute: m.id, theme: m.theme, by, test, teams, mail, push: notif, recipients: recipients.length };
   await store.put('dispatchlog', entry.id, entry);
-  if (!test && (teams.ok || mail.ok)) await store.put('minutes', m.id, { ...m, lastSent: entry.at });
+  if (!test && (teams.ok || mail.ok || notif.ok)) await store.put('minutes', m.id, { ...m, lastSent: entry.at });
   return entry;
 }
 
@@ -104,7 +107,7 @@ async function checkSchedule(reason = 'horloge') {
   const isoDow = p.dow || 7; // 1 = lundi … 7 = dimanche
   const afterTime = isoDow > 1 || p.hour > hh || (p.hour === hh && p.minute >= mm);
   if (!afterTime || isoDow > 5) return { skipped: 'hors créneau' }; // pas de rattrapage le week-end
-  if (!cfg.teamsWebhookUrl && !cfg.brevoKey) return { skipped: 'aucun canal configuré' };
+  if (!cfg.teamsWebhookUrl && !cfg.brevoKey && !(await push.stats()).devices) return { skipped: 'aucun canal configuré' };
   // Premier démarrage en cours de semaine : on ne diffuse pas par surprise, on attend lundi
   if (!s.initialized && isoDow > 1) {
     await store.kv.set('schedule', { ...s, initialized: true, lastWeekKey: wk.key });
@@ -114,9 +117,9 @@ async function checkSchedule(reason = 'horloge') {
   if (s.lastFailAt && Date.now() - new Date(s.lastFailAt) < 15 * 60000) return { skipped: 'nouvel essai bientôt' };
   const label = isoDow === 1 ? `Lundi ${cfg.sendTime}` : `Rattrapage (${reason})`;
   const entry = await dispatchMinute({ week: wk.week, by: label });
-  const delivered = entry.teams.ok || entry.mail.ok;
-  await store.kv.set('schedule', { ...s, initialized: true, lastWeekKey: delivered ? wk.key : s.lastWeekKey, lastFailAt: delivered ? null : entry.at, lastAt: entry.at, lastResult: { teams: entry.teams.ok, mail: entry.mail.ok, minute: entry.minute } });
-  console.log(`[planif] ${label} — minute ${entry.minute} : Teams ${entry.teams.ok ? 'OK' : 'KO'}, mail ${entry.mail.ok ? 'OK' : 'KO'}`);
+  const delivered = entry.teams.ok || entry.mail.ok || entry.push.ok;
+  await store.kv.set('schedule', { ...s, initialized: true, lastWeekKey: delivered ? wk.key : s.lastWeekKey, lastFailAt: delivered ? null : entry.at, lastAt: entry.at, lastResult: { teams: entry.teams.ok, mail: entry.mail.ok, push: entry.push.ok, minute: entry.minute } });
+  console.log(`[planif] ${label} — minute ${entry.minute} : Teams ${entry.teams.ok ? 'OK' : 'KO'}, mail ${entry.mail.ok ? 'OK' : 'KO'}, notif ${entry.push.ok ? entry.push.count : 'KO'}`);
   return entry;
 }
 

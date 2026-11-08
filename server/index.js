@@ -7,6 +7,7 @@ const google = require('./google');
 const kb = require('./knowledge');
 const ai = require('./ai');
 const dispatch = require('./dispatch');
+const push = require('./push');
 const { isoWeek, minuteNumberForWeek, uid } = require('./util');
 
 const app = express();
@@ -47,6 +48,11 @@ app.get('/api/bootstrap', U, wrap(async (req, res) => {
     ai: cfg.aiProvider, docs: kb.stats().docChunks,
   });
 }));
+
+// Notifications push
+app.get('/api/push/key', U, wrap(async (req, res) => res.json({ key: await push.publicKey() })));
+app.post('/api/push/subscribe', U, wrap(async (req, res) => { await push.subscribe(req.user.id, req.body?.subscription, req.headers['user-agent']); res.json({ ok: true }); }));
+app.post('/api/push/unsubscribe', U, wrap(async (req, res) => { if (req.body?.endpoint) await push.unsubscribe(req.body.endpoint); res.json({ ok: true }); }));
 
 app.post('/api/minutes/read', U, wrap(async (req, res) => {
   const wk = isoWeek();
@@ -151,23 +157,24 @@ app.get('/api/admin/overview', U, M, wrap(async (req, res) => {
     dispatch.scheduleState(), store.kv.get('sheetsSync'), store.kv.get('driveIndex')]);
   const active = techs.filter(t => t.actif !== false);
   const credSet = new Set(creds.map(c => c.uid));
+  const ps = await push.stats(); const pushSet = new Set(ps.people);
   const readSet = new Map(reads.filter(r => r.weekKey === wk.key).map(r => [r.uid, r.at]));
   const scoreMap = new Map(scores.filter(s => s.weekKey === wk.key).map(s => [s.uid, s]));
   res.json({
     week: { ...wk, minute: minuteNumberForWeek(wk.week) },
-    team: active.map(t => ({ id: t.id, nom: t.nom, hasCode: credSet.has(t.id), readAt: readSet.get(t.id) || null, quiz: scoreMap.get(t.id) || null })).sort((a, b) => a.nom.localeCompare(b.nom, 'fr')),
+    team: active.map(t => ({ id: t.id, nom: t.nom, hasCode: credSet.has(t.id), notif: pushSet.has(t.id), readAt: readSet.get(t.id) || null, quiz: scoreMap.get(t.id) || null })).sort((a, b) => a.nom.localeCompare(b.nom, 'fr')),
     schedule: { ...sched, next: dispatch.nextSend(), sendTime: cfg.sendTime },
     logs: logs.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 12),
     incidents: { open: incidents.filter(i => i.statut !== 'Clôturé').length, total: incidents.length },
     rulesPending: rules.filter(r => r.status === 'en_attente').length,
-    channels: { teams: !!cfg.teamsWebhookUrl, mail: !!cfg.brevoKey, ai: cfg.aiProvider, google: !!cfg.serviceAccount, db: !!process.env.DATABASE_URL, cron: !!cfg.cronSecret },
+    channels: { teams: !!cfg.teamsWebhookUrl, mail: !!cfg.brevoKey, push: ps.devices, ai: cfg.aiProvider, google: !!cfg.serviceAccount, db: !!process.env.DATABASE_URL, cron: !!cfg.cronSecret },
     sheets, drive, index: kb.stats(),
   });
 }));
 app.post('/api/admin/dispatch', U, M, wrap(async (req, res) => {
   const b = req.body || {};
   const entry = await dispatch.dispatchMinute({ week: b.week ? Number(b.week) : undefined, by: req.user.nom, test: !!b.test, teamsToo: !!b.teamsToo, user: req.user });
-  if (!b.test && !b.week && (entry.teams.ok || entry.mail.ok)) {
+  if (!b.test && !b.week && (entry.teams.ok || entry.mail.ok || entry.push.ok)) {
     const s = await dispatch.scheduleState(); await store.kv.set('schedule', { ...s, lastWeekKey: isoWeek().key, lastAt: entry.at, lastResult: { teams: entry.teams.ok, mail: entry.mail.ok, minute: entry.minute } });
   }
   res.json(entry);
@@ -193,7 +200,7 @@ app.get('/api/admin/causerie', U, M, wrap(async (req, res) => {
   const [incidents, logs, reads, scores, techs, minutes, rules] = await Promise.all(['incidents', 'dispatchlog', 'reads', 'quizscores', 'techs', 'minutes', 'rules'].map(c => store.list(c)));
   const inMonth = x => (x.at || x.createdAt || '').startsWith(month);
   const monthIncidents = incidents.filter(inMonth).map(({ photo, ...i }) => i);
-  const sent = logs.filter(l => inMonth(l) && !l.test && (l.teams?.ok || l.mail?.ok));
+  const sent = logs.filter(l => inMonth(l) && !l.test && (l.teams?.ok || l.mail?.ok || l.push?.ok));
   const sentMinutes = [...new Set(sent.map(l => l.minute))].map(n => minutes.find(m => m.id === n)).filter(Boolean);
   const active = techs.filter(t => t.actif !== false).length;
   const monthReads = reads.filter(inMonth); const monthScores = scores.filter(inMonth);
@@ -227,6 +234,7 @@ app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(__dirname, '..', 
   await store.init();
   await google.seedIfEmpty();
   await kb.rebuild();
+  await push.init();
   app.listen(cfg.port, () => console.log(`SafetyLift Copilot sur :${cfg.port} — IA : ${cfg.aiProvider || 'aucune'}`));
   google.syncSheets().then(() => kb.rebuild()).catch(e => console.warn('[sheets]', e.message));
   setInterval(() => google.syncSheets().then(() => kb.rebuild()).catch(() => {}), 6 * 3600e3);
