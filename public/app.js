@@ -270,7 +270,7 @@ function vAccueil() {
       <button class="tile" data-go2="fiche-ubc">${icon('people')}<b>Usagers bloqués</b><span>Fiche réflexe</span></button>
       <button class="tile" data-go2="fiche-shunt">${icon('stop')}<b>Shunts</b><span>Fiche réflexe</span></button>
       <button class="tile" data-go2="quiz">${icon('quiz')}<b>Quiz</b><span>${quizDone ? `Fait : ${quizDone.score}/${quizDone.total}` : '4 questions, 1 minute'}</span></button>
-      <button class="tile" data-go2="copilote">${icon('brain')}<b>Copilote</b><span>${S.data.docs ? 'Doc technique + sécu' : 'Questions sécu'}</span></button>
+      <button class="tile" data-go2="copilote">${icon('brain')}<b>Copilote</b><span>Questions sécurité</span></button>
     </div>
 
     <div class="section-title"><h2>Liens équipe</h2></div>
@@ -356,14 +356,14 @@ function vFiche(id) {
 function saveChat() { sessionStorage.setItem('sl_chat', JSON.stringify(S.chat.slice(-30))); }
 function askCopilot(q) { go('copilote'); setTimeout(() => sendChat(q), 30); }
 
-const SUGGEST = ['Procédure accès toit cabine', 'Consignation et VAT', 'Accès cuvette', 'Dégagement usagers bloqués', 'Les 10 règles vitales', 'Qui travaille sur le secteur 16 ?'];
+const SUGGEST = ['Procédure accès toit cabine', 'Consignation et VAT', 'Accès cuvette', 'Dégagement usagers bloqués', 'Les 10 règles vitales', 'Quels EPI pour le meulage ?'];
 
 function vCopilote() {
   const empty = !S.chat.length;
   $('#view').innerHTML = `
     <div class="row spread"><h1>Copilote</h1>${S.chat.length ? '<button class="link-btn" id="clr">Nouvelle conversation</button>' : ''}</div>
-    <p class="muted small" style="margin-top:4px">${S.data.ai ? `Répond à partir des fiches TKE${S.data.docs ? ' et de la doc technique du Drive' : ''}, en citant ses sources.` : 'Mode fiches : l\'IA n\'est pas activée sur le serveur.'}</p>
-    ${empty ? `<div class="card" style="margin:14px 0"><p><b>Pose ta question comme à un collègue.</b></p><p class="muted small">Sécurité, dépannage, code défaut, réglage… S'il ne trouve pas la réponse dans la doc, il te le dit au lieu d'inventer.</p></div>` : ''}
+    <p class="muted small" style="margin-top:4px">${S.data.ai ? `Répond aux questions de sécurité à partir des fiches${S.data.docs ? ' et des procédures TKE' : ''}, en citant ses sources.` : 'Mode fiches : l\'IA n\'est pas activée sur le serveur.'}</p>
+    ${empty ? `<div class="card" style="margin:14px 0"><p><b>Pose ta question comme à un collègue.</b></p><p class="muted small">Règles vitales, EPI, consignation, accès toit ou cuvette, usagers bloqués… Pour le dépannage technique, utilise Équipier+ ou appelle ton LTA.</p></div>` : ''}
     <div class="suggest" id="sg">${SUGGEST.map(s => `<button>${esc(s)}</button>`).join('')}</div>
     <div class="chat" id="chat" style="margin-top:14px"></div>
     <div class="chat-pad"></div>`;

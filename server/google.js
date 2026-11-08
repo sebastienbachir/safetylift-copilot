@@ -117,6 +117,7 @@ const MIME = {
   gslides: 'application/vnd.google-apps.presentation',
   pdf: 'application/pdf',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 };
 
 async function listFolder(folderId, depth = 0, out = []) {
@@ -147,8 +148,23 @@ async function extractText(f) {
     const mammoth = require('mammoth');
     return (await mammoth.extractRawText({ buffer: await gfetch(`${base}?alt=media&supportsAllDrives=true`, true) })).value;
   }
+  if (f.mimeType === MIME.pptx) return pptxText(await gfetch(`${base}?alt=media&supportsAllDrives=true`, true));
   if (/^text\//.test(f.mimeType)) return (await gfetch(`${base}?alt=media&supportsAllDrives=true`)).text();
   return null; // format non pris en charge (images, vidéos…)
+}
+
+// Texte d'un PowerPoint : une diapositive par paragraphe, dans l'ordre
+async function pptxText(buf) {
+  const zip = await require('jszip').loadAsync(buf);
+  const slides = Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n)).sort((a, b) => parseInt(a.match(/\d+/)[0]) - parseInt(b.match(/\d+/)[0]));
+  const dec = t => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+  const out = [];
+  for (const [i, n] of slides.entries()) {
+    const xml = await zip.file(n).async('string');
+    const paras = xml.split(/<\/a:p>/).map(p => [...p.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(m => dec(m[1])).join('')).filter(x => x.trim());
+    if (paras.length) out.push(`Diapositive ${i + 1}\n${paras.join('\n')}`);
+  }
+  return out.join('\n\n');
 }
 
 function chunk(text, size = 1200, overlap = 200) {
@@ -195,4 +211,4 @@ async function reindexDrive({ full = false } = {}) {
   return status;
 }
 
-module.exports = { syncSheets, seedIfEmpty, reindexDrive };
+module.exports = { syncSheets, seedIfEmpty, reindexDrive, pptxText, chunk };
