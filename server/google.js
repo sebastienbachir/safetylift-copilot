@@ -86,10 +86,14 @@ async function syncSheets() {
   try {
     const rows = (await readTab(cfg.tabs.quiz)).slice(1).filter(r => cell(r, 1) && cell(r, 2));
     if (rows.length) {
-      const list = rows.map((r, i) => ({ id: cell(r, 0) || `S${i + 1}`, question: cell(r, 1), options: [cell(r, 2), cell(r, 3), cell(r, 4)].filter(Boolean), bonne: Math.max(0, 'ABC'.indexOf(cell(r, 5).toUpperCase())), explication: cell(r, 6) }));
+      const list = rows.map((r, i) => ({ id: 'sheet-' + (cell(r, 0) || i + 1), question: cell(r, 1), options: [cell(r, 2), cell(r, 3), cell(r, 4)].filter(Boolean), bonne: Math.max(0, 'ABC'.indexOf(cell(r, 5).toUpperCase())), explication: cell(r, 6) }));
       const generated = (await store.list('quiz')).filter(q => String(q.id).startsWith('gen-'));
-      await store.replaceAll('quiz', [...list, ...generated]);
-      report.ok.push(`${list.length} questions`);
+      // Fusion : questions du classeur + questions intégrées + générées, sans doublon de question
+      const key = q => norm(q.question).replace(/[^a-z0-9]/g, '');
+      const merged = new Map();
+      for (const q of [...list, ...QUIZ, ...generated]) if (!merged.has(key(q))) merged.set(key(q), q);
+      await store.replaceAll('quiz', [...merged.values()]);
+      report.ok.push(`${merged.size} questions (${list.length} du classeur)`);
     }
   } catch (e) { report.errors.push(`Quiz : ${e.message}`); }
 
