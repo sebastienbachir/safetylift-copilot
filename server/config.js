@@ -12,8 +12,7 @@ const cfg = {
   isProd: env.NODE_ENV === 'production',
 
   // Accès
-  teamCode: env.TEAM_CODE || warnDefault('TEAM_CODE', 'equipe75'),
-  managerCode: env.MANAGER_CODE || warnDefault('MANAGER_CODE', 'manager75'),
+  teamCode: env.TEAM_CODE || 'equipe75', // code de 1re connexion, avant création du code personnel
   sessionSecret: env.SESSION_SECRET || warnDefault('SESSION_SECRET', crypto.randomBytes(32).toString('hex')),
   managerIds: (env.MANAGER_IDS || '').split(',').map(s => s.trim()).filter(Boolean), // ids (slug du nom) forcés manager
   cronSecret: env.CRON_SECRET || '',

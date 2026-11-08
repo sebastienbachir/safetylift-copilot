@@ -5,7 +5,7 @@ front HTML/CSS/JS sans build, serveur Express, base Neon, mails Brevo, déploiem
 
 ## Ce que fait l'appli
 
-Connexion : adresse e-mail de l'annuaire (onglet Techniciens) + code d'accès.
+Connexion : adresse e-mail de l'annuaire (onglet Techniciens) + code personnel. À la 1re connexion, on entre le code équipe (`TEAM_CODE`, défaut `equipe75`) et l'appli fait créer un code personnel (6 caractères min., stocké chiffré). Les LTA / RSC (fonction dans l'annuaire) ont automatiquement le pilotage, où ils peuvent réinitialiser le code d'un collègue.
 
 **Technicien** (code équipe)
 - Accueil : minute sécurité de la semaine + bouton « J'ai lu », appel direct de son binôme / LTA / 112, accès rapides.

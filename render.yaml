@@ -15,7 +15,6 @@ services:
       - key: CRON_SECRET
         generateValue: true
       - { key: TEAM_CODE, sync: false }
-      - { key: MANAGER_CODE, sync: false }
       - { key: DATABASE_URL, sync: false }
       - { key: XAI_API_KEY, sync: false }
       - { key: TEAMS_WEBHOOK_URL, sync: false }

@@ -28,6 +28,7 @@ const pub = t => ({ id: t.id, nom: t.nom, fonction: t.fonction, binome: t.binome
 app.get('/api/health', (req, res) => res.json({ ok: true, ai: cfg.aiProvider, db: !!process.env.DATABASE_URL, time: new Date().toISOString() }));
 app.post('/api/login', wrap(auth.login));
 app.post('/api/logout', auth.logout);
+app.post('/api/password', wrap(auth.setPassword));
 
 /* ---------- Appli ---------- */
 app.get('/api/bootstrap', U, wrap(async (req, res) => {
@@ -145,15 +146,16 @@ app.post('/api/quiz/score', U, wrap(async (req, res) => {
 /* ---------- Pilotage manager ---------- */
 app.get('/api/admin/overview', U, M, wrap(async (req, res) => {
   const wk = isoWeek();
-  const [techs, reads, scores, incidents, rules, logs, sched, sheets, drive] = await Promise.all([
-    store.list('techs'), store.list('reads'), store.list('quizscores'), store.list('incidents'), store.list('rules'), store.list('dispatchlog'),
+  const [creds, techs, reads, scores, incidents, rules, logs, sched, sheets, drive] = await Promise.all([
+    store.list('creds'), store.list('techs'), store.list('reads'), store.list('quizscores'), store.list('incidents'), store.list('rules'), store.list('dispatchlog'),
     dispatch.scheduleState(), store.kv.get('sheetsSync'), store.kv.get('driveIndex')]);
   const active = techs.filter(t => t.actif !== false);
+  const credSet = new Set(creds.map(c => c.uid));
   const readSet = new Map(reads.filter(r => r.weekKey === wk.key).map(r => [r.uid, r.at]));
   const scoreMap = new Map(scores.filter(s => s.weekKey === wk.key).map(s => [s.uid, s]));
   res.json({
     week: { ...wk, minute: minuteNumberForWeek(wk.week) },
-    team: active.map(t => ({ id: t.id, nom: t.nom, readAt: readSet.get(t.id) || null, quiz: scoreMap.get(t.id) || null })).sort((a, b) => a.nom.localeCompare(b.nom, 'fr')),
+    team: active.map(t => ({ id: t.id, nom: t.nom, hasCode: credSet.has(t.id), readAt: readSet.get(t.id) || null, quiz: scoreMap.get(t.id) || null })).sort((a, b) => a.nom.localeCompare(b.nom, 'fr')),
     schedule: { ...sched, next: dispatch.nextSend(), sendTime: cfg.sendTime },
     logs: logs.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 12),
     incidents: { open: incidents.filter(i => i.statut !== 'Clôturé').length, total: incidents.length },
@@ -170,6 +172,7 @@ app.post('/api/admin/dispatch', U, M, wrap(async (req, res) => {
   }
   res.json(entry);
 }));
+app.post('/api/admin/techs/:id/reset-code', U, M, wrap(auth.resetPassword));
 app.post('/api/admin/schedule', U, M, wrap(async (req, res) => {
   const s = await dispatch.scheduleState(); const next = { ...s, enabled: !!req.body?.enabled }; await store.kv.set('schedule', next); res.json(next);
 }));

@@ -145,30 +145,79 @@ async function showLogin() {
   if ($('#login')) return;
   const div = document.createElement('div');
   div.id = 'login'; div.className = 'login';
+  document.body.appendChild(div);
+  loginStep(div);
+}
+
+function loginStep(div) {
   div.innerHTML = `<form class="login-box" autocomplete="on">
     <h1>SafetyLift<small>Équipe 75 · TK Elevator</small></h1>
     <div class="stripe"></div>
     <div class="field"><label class="f" for="lg-mail">Adresse e-mail</label>
       <input id="lg-mail" class="input" type="email" inputmode="email" autocomplete="username" autocapitalize="off" spellcheck="false" required placeholder="prenom.nom@tkelevator.com"></div>
-    <div class="field"><label class="f" for="lg-code">Code d'accès</label>
-      <input id="lg-code" class="input" type="password" inputmode="text" autocomplete="current-password" required placeholder="Code équipe ou code manager"></div>
+    <div class="field"><label class="f" for="lg-code">Code</label>
+      <input id="lg-code" class="input" type="password" autocomplete="current-password" required placeholder="Ton code personnel"></div>
     <p class="err" id="lg-err"></p>
     <button class="btn amber block" type="submit">Entrer</button>
-    <p class="small" style="color:#9aa3ad;margin-top:16px">Utilise ton adresse TKE. Le code équipe ouvre l'espace technicien ; les LTA et RSC utilisent le code manager pour le pilotage.</p>
+    <p class="small" style="color:#9aa3ad;margin-top:16px">Première connexion : entre ton adresse TKE et le code équipe, puis crée ton code personnel.<br>Code oublié : demande à ton LTA de le réinitialiser.</p>
   </form>`;
-  document.body.appendChild(div);
   const last = localStorage.getItem('sl_last_mail'); if (last) { $('#lg-mail').value = last; setTimeout(() => $('#lg-code').focus(), 50); }
   div.querySelector('form').onsubmit = async e => {
     e.preventDefault();
     const email = $('#lg-mail').value.trim(), code = $('#lg-code').value;
     $('#lg-err').textContent = '';
     try {
-      await api('/api/login', { body: { email, code }, noAuthRedirect: true });
+      const r = await api('/api/login', { body: { email, code }, noAuthRedirect: true });
       localStorage.setItem('sl_last_mail', email);
-      S.data = await api('/api/bootstrap'); localStorage.setItem('sl_boot', JSON.stringify(S.data));
-      afterData(); go('accueil'); render();
+      if (r.needPassword) return createCodeStep(div, r.prenom, email);
+      await enterApp();
     } catch (err) { $('#lg-err').textContent = err.message; }
   };
+}
+
+function createCodeStep(div, prenom, email) {
+  div.innerHTML = `<form class="login-box">
+    <h1>Bienvenue ${esc(prenom)}<small>Crée ton code personnel</small></h1>
+    <div class="stripe"></div>
+    <input type="email" autocomplete="username" value="${esc(email)}" hidden>
+    <div class="field"><label class="f" for="pw1">Nouveau code</label>
+      <input id="pw1" class="input" type="password" autocomplete="new-password" minlength="6" required placeholder="6 caractères minimum"></div>
+    <div class="field"><label class="f" for="pw2">Confirme le code</label>
+      <input id="pw2" class="input" type="password" autocomplete="new-password" required></div>
+    <p class="err" id="pw-err"></p>
+    <button class="btn amber block" type="submit">Enregistrer et entrer</button>
+    <p class="small" style="color:#9aa3ad;margin-top:16px">Il remplace le code équipe pour tes prochaines connexions. Ne le partage pas.</p>
+  </form>`;
+  setTimeout(() => $('#pw1').focus(), 50);
+  div.querySelector('form').onsubmit = async e => {
+    e.preventDefault();
+    const a = $('#pw1').value, b = $('#pw2').value;
+    if (a.length < 6) return $('#pw-err').textContent = 'Au moins 6 caractères.';
+    if (a !== b) return $('#pw-err').textContent = 'Les deux codes ne sont pas identiques.';
+    try { await api('/api/password', { body: { password: a }, noAuthRedirect: true }); await enterApp(); toast('Code enregistré.'); }
+    catch (err) { $('#pw-err').textContent = err.message; if (/expirée/.test(err.message)) setTimeout(() => loginStep(div), 1500); }
+  };
+}
+
+async function enterApp() {
+  S.data = await api('/api/bootstrap'); localStorage.setItem('sl_boot', JSON.stringify(S.data));
+  afterData(); go('accueil'); render();
+}
+
+function changeCode() {
+  openSheet('Changer mon code', `
+    <div class="field"><label class="f" for="cc0">Code actuel</label><input id="cc0" class="input" type="password" autocomplete="current-password"></div>
+    <div class="field"><label class="f" for="cc1">Nouveau code</label><input id="cc1" class="input" type="password" autocomplete="new-password" placeholder="6 caractères minimum"></div>
+    <div class="field"><label class="f" for="cc2">Confirme le nouveau code</label><input id="cc2" class="input" type="password" autocomplete="new-password"></div>
+    <p class="err" id="cc-err" style="color:var(--red);font-weight:600"></p>
+    <button class="btn amber block" id="cc-go">Enregistrer</button>`, d => {
+    $('#cc-go', d).onclick = async () => {
+      const cur = $('#cc0', d).value, a = $('#cc1', d).value, b = $('#cc2', d).value;
+      if (a !== b) return $('#cc-err', d).textContent = 'Les deux codes ne sont pas identiques.';
+      try { await api('/api/password', { body: { current: cur, password: a } }); d.close(); toast('Code modifié.'); }
+      catch (err) { $('#cc-err', d).textContent = err.message; }
+    };
+  });
 }
 
 /* ---------------- Outils d'équipe ---------------- */
@@ -569,7 +618,7 @@ async function vPilotage() {
 
     <div class="card">
       <div class="row spread"><h2>Lecture S${o.week.week}</h2><button class="link-btn" id="cp-miss">Copier les absents</button></div>
-      <table class="table">${o.team.map(t => `<tr><td>${esc(t.nom)}</td><td>${t.readAt ? `<span class="tag green">Lue ${fmtDate(t.readAt, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}</span>` : '<span class="tag grey">Pas encore</span>'}</td><td class="small muted">${t.quiz ? `Quiz ${t.quiz.score}/${t.quiz.total}` : ''}</td></tr>`).join('')}</table>
+      <table class="table">${o.team.map(t => `<tr><td>${esc(t.nom)}</td><td>${t.readAt ? `<span class="tag green">Lue ${fmtDate(t.readAt, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}</span>` : '<span class="tag grey">Pas encore</span>'}</td><td class="small muted">${t.quiz ? `Quiz ${t.quiz.score}/${t.quiz.total}` : ''}</td><td style="text-align:right">${t.hasCode ? `<button class="link-btn small" data-reset="${esc(t.id)}" data-nom="${esc(t.nom)}">Code oublié</button>` : '<span class="tag grey" title="Ne s\'est jamais connecté">Pas activé</span>'}</td></tr>`).join('')}</table>
     </div>
 
     <div class="section-title"><h2>Signalements</h2></div><div id="inc" class="stack"><div class="empty">…</div></div>
@@ -601,6 +650,8 @@ async function vPilotage() {
   $('#d-now').onclick = () => confirmSheet('Diffuser maintenant ?', `La minute S${m.id} « ${m.theme} » part à toute l'équipe, sur Teams et par e-mail.`, 'Diffuser').then(ok => ok && disp({}, 'Diffusée'));
   $('#d-test').onclick = () => disp({ test: true }, 'Test envoyé à ' + S.data.me.email);
   $('#d-teams').onclick = () => confirmSheet('Tester la carte Teams', 'Une carte marquée [TEST] sera publiée dans le canal de l\'équipe.', 'Publier le test').then(ok => ok && disp({ test: true, teamsToo: true }, 'Test'));
+  $$('[data-reset]').forEach(b => b.onclick = () => confirmSheet(`Réinitialiser le code de ${b.dataset.nom} ?`, `Son code personnel est effacé. Il se reconnectera avec son e-mail et le code équipe, puis créera un nouveau code.`, 'Réinitialiser')
+    .then(async ok => { if (!ok) return; try { await api(`/api/admin/techs/${b.dataset.reset}/reset-code`, { body: {} }); toast('Code réinitialisé.'); render(); } catch (e) { toast(e.message); } }));
   $('#cp-miss').onclick = () => navigator.clipboard.writeText(o.team.filter(t => !t.readAt).map(t => t.nom).join(', ')).then(() => toast('Liste copiée.'));
   $('#sync').onclick = async () => { $('#sync').disabled = true; try { const r = await api('/api/admin/sync-sheets', { body: {} }); toast(r.errors.length ? 'Synchro partielle : ' + r.errors[0] : 'Synchronisé : ' + r.ok.join(', '), 4500); S.data = await api('/api/bootstrap'); localStorage.setItem('sl_boot', JSON.stringify(S.data)); render(); } catch (e) { toast(e.message); $('#sync').disabled = false; } };
   $('#reidx').onclick = async () => { try { await api('/api/admin/reindex', { body: {} }); toast('Indexation lancée. Reviens dans quelques minutes.', 4000); } catch (e) { toast(e.message); } };
@@ -684,13 +735,14 @@ function openMenu() {
       <button class="btn ghost block" data-go2="minute">Programme des minutes</button>
       <button class="btn ghost block" data-go2="signalements">Mes signalements</button>
       <button class="btn ghost block" id="m-rules">Règles apprises</button>
-      ${me.canManage && me.role !== 'manager' ? '<p class="small muted">Tu as un profil manager : reconnecte-toi avec le code manager pour ouvrir le pilotage.</p>' : ''}
+      <button class="btn ghost block" id="m-code">Changer mon code</button>
       <button class="btn block" id="m-out">Se déconnecter</button>
     </div>`, d => {
     bindGo2(d); $$('[data-go2]', d).forEach(b => b.addEventListener('click', () => d.close()));
     $$('#th button', d).forEach(b => b.onclick = () => { localStorage.setItem('sl_theme', b.dataset.v); applyTheme(); $$('#th button', d).forEach(x => x.classList.toggle('on', x === b)); });
     $('#vo', d).onchange = e => { S.voiceOut = e.target.checked; localStorage.setItem('sl_voice', S.voiceOut ? '1' : '0'); };
     $('#m-rules', d).onclick = () => { d.close(); showRules(); };
+    $('#m-code', d).onclick = () => { d.close(); changeCode(); };
     $('#m-out', d).onclick = async () => { await api('/api/logout', { body: {} }).catch(() => {}); localStorage.removeItem('sl_boot'); sessionStorage.clear(); S.data = null; S.chat = []; d.close(); showLogin(); };
   });
 }
