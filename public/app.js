@@ -152,7 +152,8 @@ async function showLogin() {
 
 function loginStep(div) {
   div.innerHTML = `<form class="login-box" autocomplete="on">
-    <h1>SafetyLift<small>Équipe 75 · TK Elevator</small></h1>
+    <img class="login-logo" src="/icons/logo-full-white.png" alt="SafetyLift Copilot">
+    <p class="tagline">Équipe 75 · TK Elevator</p>
     <div class="stripe"></div>
     <div class="field"><label class="f" for="lg-mail">Adresse e-mail</label>
       <input id="lg-mail" class="input" type="email" inputmode="email" autocomplete="username" autocapitalize="off" spellcheck="false" required placeholder="prenom.nom@tkelevator.com"></div>

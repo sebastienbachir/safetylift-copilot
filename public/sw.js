@@ -1,6 +1,6 @@
 // Service worker : coquille de l'appli en cache (hors ligne), API toujours en réseau.
-const CACHE = 'safetylift-v2.1.1';
-const SHELL = ['/', '/index.html', '/app.css', '/app.js', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
+const CACHE = 'safetylift-v2.2.0';
+const SHELL = ['/', '/index.html', '/app.css', '/app.js', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/shield-white.png', '/icons/logo-full-white.png', '/icons/favicon-64.png'];
 
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(
@@ -30,7 +30,7 @@ self.addEventListener('push', e => {
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
   e.waitUntil(self.registration.showNotification(d.title || 'SafetyLift', {
     body: d.body || '', tag: d.tag || 'safetylift', renotify: true,
-    icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', data: { url: d.url || '/' },
+    icon: '/icons/icon-192.png', badge: '/icons/shield-white.png', data: { url: d.url || '/' },
   }));
 });
 self.addEventListener('notificationclick', e => {

@@ -46,7 +46,7 @@ a { color: inherit; }
 .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: calc(env(safe-area-inset-top) + 8px) 12px 8px; background: var(--graphite); color: #fff; }
 .brand { display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 4px; color: #fff; }
-.brand-mark { width: 28px; height: 28px; border-radius: 6px; display: block; }
+.brand-mark { width: 26px; height: 30px; object-fit: contain; display: block; }
 .brand-name { font: 700 22px/1 var(--display); letter-spacing: .3px; }
 .top-actions { display: flex; align-items: center; gap: 6px; }
 .icon-btn { width: 44px; height: 44px; border-radius: 8px; border: 0; background: transparent; color: #fff; font-size: 20px; }
@@ -269,3 +269,6 @@ textarea.input { min-height: 110px; resize: vertical; }
   .minute-hero h1 { font-size: 46px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+.login-logo { display: block; width: min(200px, 55%); height: auto; margin: 0 0 6px; }
+.login .tagline { color: var(--amber); font: 700 20px/1.2 var(--display); margin: 0; }

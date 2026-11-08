@@ -1,12 +1,12 @@
 {
-  "name": "SafetyLift Copilot — Équipe 75",
+  "name": "SafetyLift Copilot",
   "short_name": "SafetyLift",
   "description": "Minutes sécurité, fiches réflexes, copilote IA et signalements — SAV TK Elevator Équipe 75",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#1c1e21",
+  "background_color": "#ffffff",
   "theme_color": "#1c1e21",
   "lang": "fr",
   "icons": [
