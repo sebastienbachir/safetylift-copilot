@@ -118,6 +118,7 @@ function afterData() {
   document.body.classList.remove('logged-out');
   $('#app').hidden = false; $('#login')?.remove();
   $('#btn-pilotage').hidden = S.data.me.role !== 'manager';
+  setTimeout(promptNotif, 900);
 }
 
 function netState() { $('#net').hidden = navigator.onLine; if (navigator.onLine) flushOutbox(); }
@@ -259,8 +260,6 @@ function vAccueil() {
       </div>
     </section>
 
-    <div id="notif-card"></div>
-
     <div class="section-title"><h2>Accès rapides</h2></div>
     <div class="quick-grid">
       <button class="tile accent" data-go2="signaler">${icon('alert')}<b>Signaler</b><span>Situation dangereuse</span></button>
@@ -281,7 +280,6 @@ function vAccueil() {
     </div>`;
   bindGo2();
   $('#btn-read')?.addEventListener('click', markRead);
-  paintNotifCard();
 }
 
 async function markRead() {
@@ -810,28 +808,34 @@ async function disablePush() {
   if (sub) { await api('/api/push/unsubscribe', { body: { endpoint: sub.endpoint } }).catch(() => {}); await sub.unsubscribe(); }
   toast('Notifications désactivées.');
 }
-async function paintNotifCard() {
-  const box = $('#notif-card'); if (!box) return;
-  let dismissed = false; try { dismissed = localStorage.getItem('sl_notif_later') === '1'; } catch {}
+// Pop-up à chaque ouverture de l'appli tant que les notifications ne sont pas activées
+async function promptNotif() {
+  if (S.notifAsked) return; S.notifAsked = true;
   const st = await pushState();
   if (st === 'on') {  // garde l'abonnement à jour côté serveur
     navigator.serviceWorker.ready.then(r => r.pushManager.getSubscription()).then(sub => sub && api('/api/push/subscribe', { body: { subscription: sub.toJSON() } })).catch(() => {});
     return;
   }
-  if ((dismissed && st === 'off') || !$('#notif-card')) return;
+  if (!S.data || $('#sheet').open) return;
   const msg = {
-    off: `<p class="small">Chaque lundi à 08:35, une notification t'amène directement à la minute sécurité.</p>`,
-    'ios-install': `<p class="small">Sur iPhone, ajoute d'abord SafetyLift à l'écran d'accueil : bouton <b>Partager</b> ⬆️ de Safari, puis <b>Sur l'écran d'accueil</b>. Ouvre ensuite l'appli depuis son icône et active les notifications.</p>`,
-    denied: `<p class="small">Les notifications sont bloquées pour SafetyLift. Autorise-les dans les réglages du téléphone (Notifications → SafetyLift, ou réglages du site dans Chrome), puis rouvre l'appli.</p>`,
-    unsupported: `<p class="small">Ce navigateur ne gère pas les notifications. Ouvre SafetyLift dans <b>Chrome</b> (Android) ou <b>Safari</b> (iPhone), pas depuis Outlook ou Teams, puis ajoute-la à l'écran d'accueil.</p>`,
+    off: `<p>Chaque lundi à 08:35, une notification t'amène directement à la minute sécurité. Un appui suffit pour l'activer.</p>`,
+    'ios-install': `<p>Sur iPhone, ajoute d'abord SafetyLift à l'écran d'accueil : bouton <b>Partager</b> ⬆️ de Safari, puis <b>Sur l'écran d'accueil</b>. Ouvre ensuite l'appli depuis son icône.</p>`,
+    denied: `<p>Les notifications sont bloquées pour SafetyLift. Appui long sur l'icône SafetyLift → <b>Infos sur l'appli</b> → <b>Notifications</b> → activer. Dans Chrome : cadenas à gauche de l'adresse → <b>Autorisations</b> → <b>Notifications</b>. Puis rouvre l'appli.</p>`,
+    unsupported: `<p>Ce navigateur ne gère pas les notifications. Ouvre SafetyLift dans <b>Chrome</b> (Android) ou <b>Safari</b> (iPhone), pas depuis Outlook ou Teams, et ajoute-la à l'écran d'accueil.</p>`,
   }[st];
-  if (dismissed && st !== 'off') { try { if (localStorage.getItem('sl_notif_later2') === '1') return; } catch {} }
-  box.innerHTML = `<div class="card stack" style="margin-top:16px;border-color:var(--amber)">
-    <h3>Reçois la minute du lundi en notification</h3>
-    ${msg}
-    <div class="row wrap">${st === 'off' ? '<button class="btn amber sm" id="nt-on">Activer les notifications</button>' : ''}<button class="link-btn" id="nt-later">Plus tard</button></div></div>`;
-  $('#nt-on')?.addEventListener('click', async () => { const b = $('#nt-on'); b.disabled = true; b.textContent = 'Activation…'; try { await enablePush(); box.innerHTML = ''; } catch (e) { toast(e.message || String(e), 6000); b.disabled = false; b.textContent = 'Activer les notifications'; } });
-  $('#nt-later').onclick = () => { try { localStorage.setItem('sl_notif_later', '1'); localStorage.setItem('sl_notif_later2', '1'); } catch {} box.innerHTML = ''; };
+  openSheet('Active les notifications', `${msg}
+    <p class="small muted">Ce message reviendra à chaque ouverture tant que les notifications ne sont pas activées.</p>
+    <div class="stack" style="margin-top:14px">
+      ${st === 'off' ? '<button class="btn amber block" id="np-on">Activer les notifications</button>' : ''}
+      <button class="btn ghost block" id="np-later">Plus tard</button>
+    </div>`, d => {
+    $('#np-later', d).onclick = () => d.close();
+    $('#np-on', d)?.addEventListener('click', async () => {
+      const b = $('#np-on', d); b.disabled = true; b.textContent = 'Activation…';
+      try { await enablePush(); d.close(); }
+      catch (e) { toast(e.message || String(e), 6000); b.disabled = false; b.textContent = 'Activer les notifications'; }
+    });
+  });
 }
 function waLink(m) {
   const url = location.origin + '/#minute';
