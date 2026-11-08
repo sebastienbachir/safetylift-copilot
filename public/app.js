@@ -606,9 +606,10 @@ async function vPilotage() {
       <div>
         <div class="status-line"><span class="dot ${ch.teams ? 'ok' : 'ko'}"></span>Teams ${ch.teams ? 'configuré' : '— ajouter TEAMS_WEBHOOK_URL'}</div>
         <div class="status-line"><span class="dot ${ch.mail ? 'ok' : 'ko'}"></span>E-mail Brevo ${ch.mail ? 'configuré' : '— ajouter BREVO_API_KEY'}</div>
+        <div class="status-line"><span class="dot ${ch.sms ? 'ok' : 'wait'}"></span>SMS Brevo ${ch.sms ? 'activés (crédits SMS requis)' : 'désactivés — ajouter SMS_SENDER'}</div>
         <div class="status-line"><span class="dot ${ch.cron ? 'ok' : 'wait'}"></span>Réveil externe ${ch.cron ? 'possible (CRON_SECRET)' : 'non configuré : conseillé sur Render gratuit'}</div>
       </div>
-      ${last ? `<p class="small">Dernier envoi : ${fmtDate(last.at)} · S${last.minute}${last.test ? ' (test)' : ''} · Teams ${last.teams.skipped ? '—' : last.teams.ok ? '✓' : '✗'} · e-mail ${last.mail.ok ? '✓ ' + last.mail.count : '✗'}${(!last.teams.ok && last.teams.error && !last.teams.skipped) ? `<br><span class="muted">${esc(last.teams.error)}</span>` : ''}${(!last.mail.ok && last.mail.error) ? `<br><span class="muted">${esc(last.mail.error)}</span>` : ''}</p>` : ''}
+      ${last ? `<p class="small">Dernier envoi : ${fmtDate(last.at)} · S${last.minute}${last.test ? ' (test)' : ''} · Teams ${last.teams.skipped ? '—' : last.teams.ok ? '✓' : '✗'} · e-mail ${last.mail.ok ? '✓ ' + last.mail.count : '✗'}${last.sms && !last.sms.skipped ? ` · SMS ${last.sms.ok ? '✓ ' + last.sms.count : '✗'}` : ''}${(!last.teams.ok && last.teams.error && !last.teams.skipped) ? `<br><span class="muted">${esc(last.teams.error)}</span>` : ''}${(!last.mail.ok && last.mail.error) ? `<br><span class="muted">${esc(last.mail.error)}</span>` : ''}${(last.sms?.error && !last.sms.skipped) ? `<br><span class="muted">SMS : ${esc(last.sms.error)}</span>` : ''}</p>` : ''}
       <div class="row wrap">
         <button class="btn amber sm" id="d-now">Diffuser maintenant</button>
         <button class="btn ghost sm" id="d-test">M'envoyer un test</button>
@@ -646,8 +647,8 @@ async function vPilotage() {
     </div>`;
   bindGo2($('#pl'));
   $('#auto').onchange = async e => { await api('/api/admin/schedule', { body: { enabled: e.target.checked } }); toast(e.target.checked ? 'Envoi automatique activé.' : 'Envoi automatique désactivé.'); render(); };
-  const disp = async (body, msg) => { try { const r = await api('/api/admin/dispatch', { body }); toast(`${msg} — Teams ${r.teams.skipped ? '—' : r.teams.ok ? '✓' : '✗'}, e-mail ${r.mail.ok ? '✓' : '✗'}`, 4500); render(); } catch (e) { toast(e.message); } };
-  $('#d-now').onclick = () => confirmSheet('Diffuser maintenant ?', `La minute S${m.id} « ${m.theme} » part à toute l'équipe, sur Teams et par e-mail.`, 'Diffuser').then(ok => ok && disp({}, 'Diffusée'));
+  const disp = async (body, msg) => { try { const r = await api('/api/admin/dispatch', { body }); toast(`${msg} — Teams ${r.teams.skipped ? '—' : r.teams.ok ? '✓' : '✗'}, e-mail ${r.mail.ok ? '✓' : '✗'}${r.sms && !r.sms.skipped ? `, SMS ${r.sms.ok ? '✓' : '✗'}` : ''}`, 4500); render(); } catch (e) { toast(e.message); } };
+  $('#d-now').onclick = () => confirmSheet('Diffuser maintenant ?', `La minute S${m.id} « ${m.theme} » part à toute l'équipe (Teams, e-mail et SMS selon les canaux activés).`, 'Diffuser').then(ok => ok && disp({}, 'Diffusée'));
   $('#d-test').onclick = () => disp({ test: true }, 'Test envoyé à ' + S.data.me.email);
   $('#d-teams').onclick = () => confirmSheet('Tester la carte Teams', 'Une carte marquée [TEST] sera publiée dans le canal de l\'équipe.', 'Publier le test').then(ok => ok && disp({ test: true, teamsToo: true }, 'Test'));
   $$('[data-reset]').forEach(b => b.onclick = () => confirmSheet(`Réinitialiser le code de ${b.dataset.nom} ?`, `Son code personnel est effacé. Il se reconnectera avec son e-mail et le code équipe, puis créera un nouveau code.`, 'Réinitialiser')

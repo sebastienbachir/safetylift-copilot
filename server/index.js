@@ -160,14 +160,14 @@ app.get('/api/admin/overview', U, M, wrap(async (req, res) => {
     logs: logs.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 12),
     incidents: { open: incidents.filter(i => i.statut !== 'Clôturé').length, total: incidents.length },
     rulesPending: rules.filter(r => r.status === 'en_attente').length,
-    channels: { teams: !!cfg.teamsWebhookUrl, mail: !!cfg.brevoKey, ai: cfg.aiProvider, google: !!cfg.serviceAccount, db: !!process.env.DATABASE_URL, cron: !!cfg.cronSecret },
+    channels: { teams: !!cfg.teamsWebhookUrl, mail: !!cfg.brevoKey, sms: !!(cfg.brevoKey && cfg.smsSender), ai: cfg.aiProvider, google: !!cfg.serviceAccount, db: !!process.env.DATABASE_URL, cron: !!cfg.cronSecret },
     sheets, drive, index: kb.stats(),
   });
 }));
 app.post('/api/admin/dispatch', U, M, wrap(async (req, res) => {
   const b = req.body || {};
   const entry = await dispatch.dispatchMinute({ week: b.week ? Number(b.week) : undefined, by: req.user.nom, test: !!b.test, teamsToo: !!b.teamsToo, user: req.user });
-  if (!b.test && !b.week && (entry.teams.ok || entry.mail.ok)) {
+  if (!b.test && !b.week && (entry.teams.ok || entry.mail.ok || entry.sms.ok)) {
     const s = await dispatch.scheduleState(); await store.kv.set('schedule', { ...s, lastWeekKey: isoWeek().key, lastAt: entry.at, lastResult: { teams: entry.teams.ok, mail: entry.mail.ok, minute: entry.minute } });
   }
   res.json(entry);
@@ -193,7 +193,7 @@ app.get('/api/admin/causerie', U, M, wrap(async (req, res) => {
   const [incidents, logs, reads, scores, techs, minutes, rules] = await Promise.all(['incidents', 'dispatchlog', 'reads', 'quizscores', 'techs', 'minutes', 'rules'].map(c => store.list(c)));
   const inMonth = x => (x.at || x.createdAt || '').startsWith(month);
   const monthIncidents = incidents.filter(inMonth).map(({ photo, ...i }) => i);
-  const sent = logs.filter(l => inMonth(l) && !l.test && (l.teams?.ok || l.mail?.ok));
+  const sent = logs.filter(l => inMonth(l) && !l.test && (l.teams?.ok || l.mail?.ok || l.sms?.ok));
   const sentMinutes = [...new Set(sent.map(l => l.minute))].map(n => minutes.find(m => m.id === n)).filter(Boolean);
   const active = techs.filter(t => t.actif !== false).length;
   const monthReads = reads.filter(inMonth); const monthScores = scores.filter(inMonth);

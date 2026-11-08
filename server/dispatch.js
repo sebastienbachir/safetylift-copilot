@@ -57,6 +57,39 @@ async function sendMail({ to, subject, html, text }) {
   } catch (e) { return { ok: false, configured: true, error: e.message }; }
 }
 
+/* ---------- SMS (Brevo, crédits SMS requis) ---------- */
+const plain = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘]/g, "'").replace(/[«»“”]/g, '"').replace(/[–—]/g, '-').replace(/[^\x20-\x7E]/g, '');
+function toIntl(tel) {
+  let d = String(tel || '').replace(/[^\d+]/g, '');
+  if (d.startsWith('+')) d = d.slice(1);
+  else if (d.startsWith('00')) d = d.slice(2);
+  else if (/^0[67]\d{8}$/.test(d)) d = '33' + d.slice(1);
+  return /^[1-9]\d{9,14}$/.test(d) ? d : null;
+}
+function minuteSms(m, test) {
+  const link = cfg.appUrl ? ` Lire : ${cfg.appUrl}/#minute` : '';
+  const head = `${test ? '[TEST] ' : ''}Minute secu S${m.id} : `;
+  const body = plain(`${m.theme}. Risque : ${m.risque}.`);
+  const room = 160 - head.length - link.length;
+  return head + (body.length > room ? body.slice(0, room - 3).trimEnd() + '...' : body) + link;
+}
+async function sendSms({ tels, content }) {
+  if (!cfg.brevoKey || !cfg.smsSender) return { ok: false, configured: false, error: 'SMS non activés (SMS_SENDER)' };
+  const list = [...new Set(tels.map(toIntl).filter(Boolean))];
+  if (!list.length) return { ok: false, configured: true, error: 'aucun numéro valide' };
+  let sent = 0; const errors = [];
+  for (const recipient of list) {
+    try {
+      const r = await fetch('https://api.brevo.com/v3/transactionalSMS/send', {
+        method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json', 'api-key': cfg.brevoKey },
+        body: JSON.stringify({ sender: cfg.smsSender, recipient, content, type: 'transactional', tag: 'minute-securite', unicodeEnabled: false }),
+      });
+      if (r.ok) sent++; else errors.push(`${r.status} ${(await r.text()).slice(0, 160)}`);
+    } catch (e) { errors.push(e.message); }
+  }
+  return sent ? { ok: true, configured: true, count: sent, ...(errors.length ? { error: `${errors.length} échec(s) : ${errors[0]}` } : {}) } : { ok: false, configured: true, error: errors[0] || 'échec' };
+}
+
 function minuteMail(m, test) {
   const link = cfg.appUrl ? `${cfg.appUrl}/#minute` : '';
   return {
@@ -84,9 +117,11 @@ async function dispatchMinute({ week, by = 'Automatique', test = false, teamsToo
   const recipients = test ? [user?.email].filter(Boolean) : techs.map(t => t.email);
   const teams = (!test || teamsToo) ? await sendTeams(m, { test }) : { ok: false, configured: !!cfg.teamsWebhookUrl, skipped: true };
   const mail = await sendMail({ to: recipients, ...minuteMail(m, test) });
-  const entry = { id: uid('d-'), at: new Date().toISOString(), minute: m.id, theme: m.theme, by, test, teams, mail, recipients: recipients.length };
+  const tels = test ? [user?.tel].filter(Boolean) : techs.map(t => t.tel);
+  const sms = cfg.smsSender ? await sendSms({ tels, content: minuteSms(m, test) }) : { ok: false, configured: false, skipped: true };
+  const entry = { id: uid('d-'), at: new Date().toISOString(), minute: m.id, theme: m.theme, by, test, teams, mail, sms, recipients: recipients.length };
   await store.put('dispatchlog', entry.id, entry);
-  if (!test && (teams.ok || mail.ok)) await store.put('minutes', m.id, { ...m, lastSent: entry.at });
+  if (!test && (teams.ok || mail.ok || sms.ok)) await store.put('minutes', m.id, { ...m, lastSent: entry.at });
   return entry;
 }
 
@@ -114,9 +149,9 @@ async function checkSchedule(reason = 'horloge') {
   if (s.lastFailAt && Date.now() - new Date(s.lastFailAt) < 15 * 60000) return { skipped: 'nouvel essai bientôt' };
   const label = isoDow === 1 ? `Lundi ${cfg.sendTime}` : `Rattrapage (${reason})`;
   const entry = await dispatchMinute({ week: wk.week, by: label });
-  const delivered = entry.teams.ok || entry.mail.ok;
-  await store.kv.set('schedule', { ...s, initialized: true, lastWeekKey: delivered ? wk.key : s.lastWeekKey, lastFailAt: delivered ? null : entry.at, lastAt: entry.at, lastResult: { teams: entry.teams.ok, mail: entry.mail.ok, minute: entry.minute } });
-  console.log(`[planif] ${label} — minute ${entry.minute} : Teams ${entry.teams.ok ? 'OK' : 'KO'}, mail ${entry.mail.ok ? 'OK' : 'KO'}`);
+  const delivered = entry.teams.ok || entry.mail.ok || entry.sms.ok;
+  await store.kv.set('schedule', { ...s, initialized: true, lastWeekKey: delivered ? wk.key : s.lastWeekKey, lastFailAt: delivered ? null : entry.at, lastAt: entry.at, lastResult: { teams: entry.teams.ok, mail: entry.mail.ok, sms: entry.sms.ok, minute: entry.minute } });
+  console.log(`[planif] ${label} — minute ${entry.minute} : Teams ${entry.teams.ok ? 'OK' : 'KO'}, mail ${entry.mail.ok ? 'OK' : 'KO'}, SMS ${entry.sms.ok ? 'OK' : '—'}`);
   return entry;
 }
 
@@ -134,4 +169,4 @@ function startScheduler() {
   setInterval(() => checkSchedule().catch(e => console.error('[planif]', e.message)), 60000);
 }
 
-module.exports = { dispatchMinute, sendTeams, sendMail, checkSchedule, scheduleState, nextSend, startScheduler, esc };
+module.exports = { dispatchMinute, sendTeams, sendMail, sendSms, minuteSms, toIntl, checkSchedule, scheduleState, nextSend, startScheduler, esc };
